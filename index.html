@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Gantt Chart</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .chart-container {
+            text-align: center;
+        }
+        .info-bar {
+            background-color: #f0f8ff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            font-size: 16px;
+            color: #333;
+            cursor: pointer;
+        }
+        .info-bar h3 {
+            margin: 0;
+        }
+        .bar {
+            fill: steelblue;
+            stroke: none;
+        }
+        .axis text {
+            font: 10px sans-serif;
+        }
+        .row-bg {
+            fill: none;
+            stroke: lightgray;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            width: 120px;
+            height: 28px;
+            padding: 2px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <div id="info-bar" class="info-bar">
+            <h3>Next Item:</h3>
+            <p id="next-item-id">Event ID: N/A</p>
+            <p id="next-item-name">Item SKU: N/A</p>
+        </div>
+
+        <svg id="chart"></svg>
+    </div>
+
+    <script>
+        var margin = {top: 20, right: 20, bottom: 30, left: 100},
+            height = 500 - margin.top - margin.bottom;
+
+        function getWidth() {
+            return window.innerWidth - margin.left - margin.right;
+        }
+
+        var x = d3.scaleBand(),
+            y = d3.scaleBand().range([height, 0]).padding(0.1);
+
+        var svg = d3.select("#chart")
+            .attr("width", getWidth())
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var xAxis = d3.axisBottom(x).tickSize(0),
+            yAxis = d3.axisLeft(y).tickSize(0);
+
+        var data;
+
+        var color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        var div = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        d3.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSTUrVA_ilFUgKBcUBRoEd2qshCNtOxW_WWhdggIsNGYWauvwhkkuK916imGfPVWJqmbuCnCPFR83DR/pub?output=csv").then(function(contents) {
+            data = contents.map(function(d) {
+                return {
+                    id: d['Event ID'],
+                    name: d['Item SKU'],
+                    start: new Date(d['Start Date']),
+                    end: new Date(d['End Date']),
+                    image: d['Image']
+                };
+            });
+
+            drawChart(data);
+            updateNextItemInfo(data);
+
+            d3.select("#info-bar").on("click", function() {
+                var nextItem = data[0];
+                if (nextItem) {
+                    data = data.filter(function(d) { return d.id !== nextItem.id; });
+                    drawChart(data);
+                    updateNextItemInfo(data);
+                }
+            });
+        });
+
+        function drawChart(data) {
+            svg.selectAll("*").remove();
+
+            var eventIds = data.map(function(d) { return d.id; });
+            var skuNames = data.map(function(d) { return d.name; });
+
+            var width = getWidth();
+            svg.attr("width", width);
+
+            x.range([0, width]).domain(eventIds);
+            y.domain(skuNames);
+
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x).tickFormat(function(d) { return d; }))
+                .call(g => g.select(".domain").remove());
+
+            svg.append("g")
+                .call(d3.axisLeft(y))
+                .call(g => g.select(".domain").remove());
+
+            svg.selectAll(".row-bg")
+                .data(data)
+                .enter().append("rect")
+                .attr("class", "row-bg")
+                .attr("x", function(d) { return x(d.id); })
+                .attr("y", function(d) { return y(d.name); })
+                .attr("width", x.bandwidth())
+                .attr("height", y.bandwidth())
+                .attr("fill", function(d, i) { return i % 2 ? "#eee" : "#fff"; });
+
+            svg.selectAll(".bar")
+                .data(data)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", function(d) { return x(d.id); })
+                .attr("y", function(d) { return y(d.name); })
+                .attr("width", x.bandwidth())
+                .attr("height", y.bandwidth())
+                .attr("rx", 5)
+                .attr("fill", function(d) { return color(d.name); })
+                // Remove hover and click interactions
+                .on("mouseover", null)
+                .on("mouseout", null)
+                .on("click", null);
+        }
+
+        function updateNextItemInfo(data) {
+            if (data.length > 0) {
+                var nextItem = data[0];
+                d3.select("#next-item-id").text("ID: " + nextItem.id);
+                d3.select("#next-item-name").text(nextItem.name);
+                // Display image in the info bar
+                d3.select("#info-bar").append("img")
+                    .attr("src", nextItem.image)
+                    .attr("alt", nextItem.name)
+                    .attr("height", 50);
+            } else {
+                d3.select("#next-item-id").text("ID: N/A");
+                d3.select("#next-item-name").text("N/A");
+            }
+        }
+    </script>
+</body>
+</html>
